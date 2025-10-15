@@ -29,3 +29,11 @@ router.get('/:feedId/articles', protect, feedController.getFeedArticles);
 
 
 module.exports = router;
+
+// /src/routes/feedRoutes.js (صرف آخری لائن میں تبدیلی)
+
+// ... (پچھلے روٹس: add, getFeeds, getFeedArticles, deleteFeed)
+
+// 5. ویجیٹ بنانا (Widget Creation)
+// POST /api/feeds/:feedId/widget
+router.post('/:feedId/widget', protect, feedController.createWidget);
