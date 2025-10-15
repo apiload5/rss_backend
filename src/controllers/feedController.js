@@ -1,76 +1,84 @@
-const rssService = require('../services/rssService');
-const Feed = require('../models/Feed'); // Feed ماڈل امپورٹ کریں
-const Article = require('../models/Article'); // Article ماڈل امپورٹ کریں
-const User = require('../models/User'); // یوزر ماڈل امپورٹ کریں
+// /src/controllers/feedController.js
+// ... (پچھلے Imports)
+const Feed = require('../models/Feed'); 
+const Article = require('../models/Article');
+// User کی ضرورت نہیں کیونکہ req.user سے ID مل جائے گی
 
-// عارضی ایڈمن یوزر ID نکالنے کا فنکشن
-const getAdminUserId = async () => {
-    // آپ اسے آتھنٹیکیشن مڈل ویئر سے حاصل کریں گے
-    // لیکن فی الحال ہم ڈمی یوزر تلاش کر رہے ہیں
-    const adminUser = await User.findOne({ username: 'admin' });
-    if (!adminUser) {
-        throw new Error("Admin user not found. Please create one in the DB.");
-    }
-    return adminUser._id;
-};
+// ... (exports.addFeed پہلے سے موجود ہے، صرف ownerId کو اپ ڈیٹ کریں)
 
 exports.addFeed = async (req, res) => {
-    const { url } = req.body; 
+    const { url } = req.body;
+    const ownerId = req.user._id; // <-- اب ID ٹوکن سے ملی ہے!
 
-    if (!url) {
-        return res.status(400).json({ success: false, message: 'Feed URL is required.' });
+    // ... (باقی لاجک وہی رہے گی)
+    // newFeed بناتے وقت: ownerId: ownerId, استعمال ہوگا
+    // ...
+};
+
+
+// -------------------
+// 1. صارف کی تمام فیڈز حاصل کرنا
+// -------------------
+exports.getFeeds = async (req, res) => {
+    try {
+        // صرف لاگ ان یوزر کی فیڈز تلاش کریں
+        const feeds = await Feed.find({ ownerId: req.user._id }).sort({ createdAt: -1 });
+        res.json({ success: true, feeds });
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching feeds.' });
     }
+};
+
+
+// -------------------
+// 2. مخصوص فیڈ اور اس کے آرٹیکلز حاصل کرنا
+// -------------------
+exports.getFeedArticles = async (req, res) => {
+    const { feedId } = req.params;
+    const ownerId = req.user._id;
 
     try {
-        const adminId = await getAdminUserId(); // یوزر ID حاصل کریں
-        
-        // 1. RSS سروس کا استعمال کرتے ہوئے URL کو پارس کریں
-        const { title, link, articles } = await rssService.parseFeed(url);
-        
-        // 2. چیک کریں کہ آیا فیڈ پہلے سے موجود ہے
-        let existingFeed = await Feed.findOne({ url });
+        // چیک کریں کہ آیا یہ فیڈ اسی یوزر کی ملکیت ہے
+        const feed = await Feed.findOne({ _id: feedId, ownerId });
 
-        if (existingFeed) {
-             return res.status(409).json({ success: false, message: 'This feed already exists.', feed: existingFeed });
+        if (!feed) {
+            return res.status(404).json({ message: 'Feed not found or access denied.' });
         }
 
-        // 3. نیا فیڈ ماڈل بنائیں اور محفوظ کریں
-        const newFeed = new Feed({
-            url,
-            title,
-            // link: link, // آپشنل: اگر آپ فیڈ کا لنک محفوظ کرنا چاہیں
-            ownerId: adminId, 
-            lastFetched: new Date(),
-        });
-        const savedFeed = await newFeed.save();
+        // فیڈ کے آرٹیکلز تلاش کریں
+        const articles = await Article.find({ feedId })
+            .sort({ pubDate: -1 })
+            .limit(50) // حد مقرر کریں
+            .select('title link pubDate contentSnippet');
 
-        // 4. نئے آرٹیکلز کو ڈیٹا بیس میں محفوظ کریں (Article ماڈل میں)
-        const articlesToSave = articles.map(article => ({
-            feedId: savedFeed._id,
-            title: article.title,
-            link: article.link,
-            contentSnippet: article.contentSnippet,
-            pubDate: article.pubDate,
-        }));
-        
-        // Mongo میں بہت سارے آرٹیکلز ایک ساتھ ڈالیں
-        // 'ordered: false' کا مطلب ہے کہ اگر ایک آرٹیکل پہلے سے موجود ہو (unique link کی وجہ سے) تو باقی ڈالے جائیں گے
-        const result = await Article.insertMany(articlesToSave, { ordered: false })
-            .catch(err => {
-                // Duplicate key error کو نظرانداز کریں (اگر کوئی آرٹیکل پہلے سے ہو)
-                if (err.code !== 11000) throw err; 
-                return { insertedCount: result ? result.length : 0 };
-            });
-
-        res.status(201).json({ 
-            success: true, 
-            message: 'Feed added and articles imported successfully.',
-            feed: savedFeed,
-            articlesInserted: result.insertedCount 
-        });
+        res.json({ success: true, feed: feed, articles: articles });
 
     } catch (error) {
-        console.error("Error adding feed:", error);
-        res.status(500).json({ success: false, message: error.message || 'Failed to add feed due to server error.' });
+        res.status(500).json({ message: 'Error fetching articles.' });
+    }
+};
+
+
+// -------------------
+// 3. فیڈ ڈیلیٹ کرنا
+// -------------------
+exports.deleteFeed = async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        // فیڈ تلاش کریں اور چیک کریں کہ کیا یوزر اس کا مالک ہے
+        const feed = await Feed.findOne({ _id: id, ownerId: req.user._id });
+
+        if (!feed) {
+            return res.status(404).json({ message: 'Feed not found or access denied.' });
+        }
+
+        // فیڈ اور اس سے جڑے تمام آرٹیکلز ڈیلیٹ کریں
+        await feed.deleteOne(); // Mongoose delete method
+        await Article.deleteMany({ feedId: id });
+
+        res.json({ success: true, message: 'Feed and associated articles deleted successfully.' });
+    } catch (error) {
+        res.status(500).json({ message: 'Error deleting feed.' });
     }
 };
