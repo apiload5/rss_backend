@@ -1,17 +1,15 @@
 // /src/app.js
 
 const express = require('express');
-const connectDB = require('./config/db'); // نیا DB فنکشن
+const connectDB = require('./config/db');
 const feedRoutes = require('./routes/feedRoutes');
-
-// DB سے جڑیں (connectDB اب یہاں کال نہیں ہو گا، یہ server.js میں ہو گا)
+const authRoutes = require('./routes/authRoutes'); // authRoutes امپورٹ کریں
 
 const app = express();
-
-// Middleware
-app.use(express.json());
+// ... (Middleware remains the same)
 
 // Routes
+app.use('/api/auth', authRoutes); // Auth routes شامل کریں
 app.use('/api/feeds', feedRoutes);
 
 app.get('/', (req, res) => {
