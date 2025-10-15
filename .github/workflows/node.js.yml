@@ -1,31 +1,50 @@
-# This workflow will do a clean installation of node dependencies, cache/restore them, build the source code and run tests across different versions of node
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-nodejs
-
+# .github/workflows/node.js.yml
 name: Node.js CI
 
+# یہ Workflow کب چلے گا
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "develop" ] # جب 'main' یا 'develop' برانچ میں کوڈ پش ہو
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main" ] # جب 'main' میں پل ریکویسٹ آئے
 
+# Workflow کے jobs
 jobs:
   build:
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest # یہ job ایک تازہ Ubuntu ماحول میں چلے گا
 
     strategy:
+      # مختلف Node.js ورژنز پر ٹیسٹ کرنے کے لیے
       matrix:
-        node-version: [18.x, 20.x, 22.x]
-        # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
+        node-version: [18.x, 20.x] 
+        # اگر آپ نے ٹیسٹ زیادہ ورژنز پر نہیں چلانا تو صرف [20.x] بھی رکھ سکتے ہیں
 
     steps:
-    - uses: actions/checkout@v4
-    - name: Use Node.js ${{ matrix.node-version }}
+    - uses: actions/checkout@v4 # 1. ریپوزیٹری کا کوڈ نکالنا
+      with:
+        # اگر آپ کے سب ماڈیولز ہوں تو ضروری ہے
+        submodules: true
+
+    - name: Use Node.js ${{ matrix.node-version }} # 2. Node.js ورژن سیٹ کرنا
       uses: actions/setup-node@v4
       with:
         node-version: ${{ matrix.node-version }}
-        cache: 'npm'
-    - run: npm ci
-    - run: npm run build --if-present
-    - run: npm test
+        cache: 'npm' # npm پیکیجز کو کیش کرے گا تاکہ دوبارہ انسٹالیشن تیزی سے ہو
+
+    - name: Install Dependencies # 3. تمام لائبریریاں انسٹال کرنا
+      run: npm install
+
+    # [اہم نوٹ] اگر آپ کا Backend DB سے جڑتا ہے، تو ٹیسٹ سے پہلے Mock DB سیٹ اپ کرنا پڑتا ہے۔ 
+    # سادہ ٹیسٹنگ کے لیے یہ کافی ہے۔ 
+
+    - name: Run Tests # 4. ٹیسٹ چلانا
+      # اگر آپ نے 'package.json' میں "test" سکرپٹ سیٹ کیا ہے (جیسے 'jest' یا 'mocha')
+      run: npm test
+      # اگر آپ کے پاس فی الحال کوئی ٹیسٹ نہیں ہے، تو آپ اس step کو عارضی طور پر ہٹا سکتے ہیں، 
+      # لیکن جلد ہی ٹیسٹ شامل کرنا ضروری ہے۔
+
+    - name: Lint Code (Optional) # 5. کوڈ کی صفائی کی جانچ (اگر آپ ESLint استعمال کرتے ہیں)
+      # اگر آپ نے Linting سیٹ اپ کیا ہے تو یہاں کمانڈ شامل کریں۔
+      # run: npm run lint
+      run: echo "Linting step skipped for now. Add 'npm run lint' later."
