@@ -1,37 +1,30 @@
 // /src/app.js
 
 const express = require('express');
-const connectDB = require('./config/db');
+const cors = require('cors');
+const { apiLimiter, publicLimiter } = require('./middleware/rateLimiter');
 const feedRoutes = require('./routes/feedRoutes');
 const authRoutes = require('./routes/authRoutes');
 const publicRoutes = require('./routes/publicRoutes');
-const { apiLimiter, publicLimiter } = require('./middleware/rateLimiter'); 
-const cors = require('cors'); // اگر آپ فرنٹ اینڈ کے ساتھ ٹیسٹ کر رہے ہیں تو CORS شامل کریں
 
 const app = express();
 
-// Middleware
-// ہر request سے پہلے JSON body کو پارس کریں
-app.use(express.json());
-// CORS کو فعال کریں (صرف ٹیسٹنگ کے لیے)
-app.use(cors()); 
+// ✅ Middleware
+app.use(express.json());     // Parse JSON
+app.use(cors());             // Enable CORS for all origins (adjust later if needed)
 
-// Rate Limiting کو لاگو کریں: 
-// 1. تمام محفوظ APIs پر ایک عمومی حد لگائیں
+// ✅ Rate Limiting
 app.use('/api/', apiLimiter); 
+app.use('/api/public', publicLimiter, publicRoutes);
 
-// 2. پبلک روٹس پر زیادہ سخت حد لگائیں
-app.use('/api/public', publicLimiter, publicRoutes); 
-
-// Routes
-// Authentication routes
+// ✅ Routes
 app.use('/api/auth', authRoutes); 
-// Protected user feed management routes
 app.use('/api/feeds', feedRoutes);
 
-// Health check / Default Route
+// ✅ Health Check Route
 app.get('/', (req, res) => {
-    res.send('RSS Aggregator Backend API is operational!');
+    res.status(200).send('✅ RSS Aggregator Backend API is operational!');
 });
 
+// ✅ Export for Vercel
 module.exports = app;
