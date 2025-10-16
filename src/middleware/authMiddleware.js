@@ -3,33 +3,48 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
-// @desc Middleware to protect routes and verify JWT
-const protect = async (req, res, next) => {
+// 🧠 Middleware: Protect routes using JWT
+const authMiddleware = async (req, res, next) => {
     let token;
 
-    // 1. Check if token exists in headers
+    // 1. Token check in Authorization header
     if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
         try {
-            // Get token from header (Format: Bearer <token>)
+            // Extract token (Format: "Bearer <token>")
             token = req.headers.authorization.split(' ')[1];
-            
-            // 2. Verify token using your JWT_SECRET
+
+            // 2. Verify JWT
             const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-            // 3. Attach userId to the request for controller access
-            req.userId = decoded.id; 
+            // 3. Attach user ID to request
+            req.userId = decoded.id;
 
-            next(); // Go to the next middleware or controller function
+            // Optional: You can also verify if the user still exists
+            const user = await User.findById(decoded.id).select('-password');
+            if (!user) {
+                return res.status(401).json({ success: false, message: 'User no longer exists.' });
+            }
+
+            // Proceed
+            next();
         } catch (error) {
-            console.error('JWT Token Verification Error:', error);
-            return res.status(401).json({ success: false, message: 'Not authorized, token failed or expired.' });
+            console.error('JWT Verification Error:', error);
+            return res.status(401).json({
+                success: false,
+                message: 'Not authorized, token invalid or expired.'
+            });
         }
     }
 
+    // 4. If no token found
     if (!token) {
-        return res.status(401).json({ success: false, message: 'Not authorized, no token provided.' });
+        return res.status(401).json({
+            success: false,
+            message: 'Not authorized, token missing.'
+        });
     }
 };
 
-// Yahan se function ko export kiya ja raha hai, jo Express ko zaroori hai.
-exports.protect = protect;
+// ✅ Export correctly for Express routes
+module.exports = authMiddleware;
+    
