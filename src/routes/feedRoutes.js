@@ -37,3 +37,19 @@ router.get('/:feedId', authMiddleware, getFeedItems);
 // ✅ Export router
 // ==============================
 module.exports = router;
+
+const express = require('express');
+const router = express.Router();
+const authMiddleware = require('../middleware/authMiddleware');
+
+// 🧪 Test route to verify JWT middleware
+router.get('/test', authMiddleware, (req, res) => {
+    res.json({
+        success: true,
+        message: 'JWT Verified Successfully!',
+        userId: req.userId
+    });
+});
+
+module.exports = router;
+
